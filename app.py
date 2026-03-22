@@ -3,10 +3,12 @@ import tempfile
 import os
 from rag_engine import build_qa_chain
 
+# basic page config
 st.set_page_config(page_title="PDF Chatbot", page_icon="📄")
 st.title("RAG PDF Chatbot")
 st.caption("Upload one or more PDFs and ask questions about them.")
 
+# support multiple pdfs - added this after single pdf version worked
 uploaded_files = st.file_uploader(
     "Upload your PDFs",
     type="pdf",
@@ -17,10 +19,12 @@ if uploaded_files:
     file_names = [f.name for f in uploaded_files]
 
     with st.spinner("Processing PDFs..."):
+        # only rebuild the chain if files change - saves time
         if "qa_chain" not in st.session_state or \
            st.session_state.get("file_names") != file_names:
             tmp_paths = []
             for uploaded_file in uploaded_files:
+                # save to temp file so langchain can read it from disk
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                     tmp.write(uploaded_file.read())
                     tmp_paths.append(tmp.name)
@@ -29,12 +33,13 @@ if uploaded_files:
             st.session_state.file_names = file_names
             st.session_state.messages = []
 
+            # cleanup temp files after processing
             for path in tmp_paths:
                 os.unlink(path)
 
     st.success(f"Ready! Loaded {len(uploaded_files)} PDF(s): {', '.join(file_names)}")
 
-    # Display chat history
+    # show full chat history on each rerun
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
@@ -46,6 +51,7 @@ if uploaded_files:
 
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
+                # build conversation history string for memory
                 history = ""
                 for msg in st.session_state.messages[:-1]:
                     role = "User" if msg["role"] == "user" else "Assistant"
@@ -57,6 +63,7 @@ if uploaded_files:
 
             st.write(answer)
 
+            # show source pages so user can verify the answer
             with st.expander("Source passages"):
                 for doc in sources:
                     page = doc.metadata.get("page", "?")
@@ -67,4 +74,4 @@ if uploaded_files:
         st.session_state.messages.append({"role": "assistant", "content": answer})
 
 else:
-    st.info("Upload one or more PDFs to get started.")
+    st.info("Upload a PDF to get started.")
